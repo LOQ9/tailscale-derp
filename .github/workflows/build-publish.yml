@@ -77,9 +77,9 @@ jobs:
       - name: Smoke test image
         run: |
           docker run -d --name derper-smoke \
-            -p 8080:8080 \
+            -p 3340:3340 \
             "${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.version.outputs.version }}" \
-            --a=:4443 --http-port=8080 --stun=false
+            --dev
           bash scripts/smoke-test.sh
 
       - name: Scan image with Trivy
