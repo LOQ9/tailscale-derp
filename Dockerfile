@@ -1,12 +1,15 @@
 # syntax=docker/dockerfile:1
 
 ARG TAILSCALE_VERSION=v1.98.9
-ARG GO_VERSION=1.23-alpine
+ARG GO_VERSION=1.26-alpine
 
 FROM golang:${GO_VERSION} AS builder
 ARG TAILSCALE_VERSION
 RUN apk add --no-cache git ca-certificates
 ENV CGO_ENABLED=0
+# auto: let go fetch whatever toolchain a future tailscale release needs,
+# even if it's newer than this image's bundled Go.
+ENV GOTOOLCHAIN=auto
 RUN go install "tailscale.com/cmd/derper@${TAILSCALE_VERSION}"
 
 FROM alpine:3.20 AS runtime
