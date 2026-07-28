@@ -1,0 +1,64 @@
+name: Check upstream tailscale version
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest tailscale release
+        id: latest
+        run: |
+          TAG=$(gh api repos/tailscale/tailscale/releases/latest --jq .tag_name)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Compare with current VERSION
+        id: diff
+        run: |
+          CURRENT=$(cat VERSION)
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "${{ steps.latest.outputs.tag }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump VERSION file
+        if: steps.diff.outputs.changed == 'true'
+        run: echo "${{ steps.latest.outputs.tag }}" > VERSION
+
+      - name: Open and auto-merge version bump PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="bump-tailscale-${{ steps.latest.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "chore: bump tailscale to ${{ steps.latest.outputs.tag }}"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --title "chore: bump tailscale to ${{ steps.latest.outputs.tag }}" \
+            --body "Automated version bump from ${{ steps.diff.outputs.current }} to ${{ steps.latest.outputs.tag }}. See https://github.com/tailscale/tailscale/releases/tag/${{ steps.latest.outputs.tag }}" \
+            --base main --head "$BRANCH")
+          gh pr merge "$PR_URL" --squash
+
+      # Merges made with the default GITHUB_TOKEN don't trigger other
+      # workflows' `push` events, so explicitly kick off the build here.
+      - name: Trigger image build
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-publish.yml -f version="${{ steps.latest.outputs.tag }}"
