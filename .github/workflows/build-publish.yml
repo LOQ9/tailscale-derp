@@ -91,9 +91,9 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.version }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
+            NOTES="Built from tailscale/tailscale $TAG. See https://github.com/tailscale/tailscale/releases/tag/$TAG"
+            NOTES="$NOTES"$'\n\n'"Image: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG\`"
             gh release create "$TAG" \
               --title "$TAG" \
-              --notes "Built from tailscale/tailscale $TAG. See https://github.com/tailscale/tailscale/releases/tag/$TAG
-
-Image: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG\`"
+              --notes "$NOTES"
           fi
